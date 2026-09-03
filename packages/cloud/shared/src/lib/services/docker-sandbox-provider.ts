@@ -6070,14 +6070,17 @@ export class DockerSandboxProvider implements SandboxProvider {
     const tracked = this.containers.get(sandboxId);
     if (tracked) return tracked;
 
-    const sandbox = await agentSandboxesRepository.findBySandboxId(sandboxId);
+    // Destructive identity must use the same primary authority as the deletion
+    // generation that immediately preceded it. A lagging or unavailable read
+    // endpoint must not strand teardown after the primary accepted ownership.
+    const sandbox = await agentSandboxesRepository.findBySandboxIdForWrite(sandboxId);
     if (!sandbox || !sandbox.node_id || !sandbox.container_name) {
       throw new Error(
         `[docker-sandbox] Container "${sandboxId}" not found in memory or DB. Cannot resolve target node.`,
       );
     }
 
-    const dbNode = await dockerNodesRepository.findByNodeId(sandbox.node_id);
+    const dbNode = await dockerNodesRepository.findByNodeIdOnPrimary(sandbox.node_id);
     if (!dbNode) {
       throw new Error(
         `[docker-sandbox] Missing persisted docker node metadata for node "${sandbox.node_id}"`,

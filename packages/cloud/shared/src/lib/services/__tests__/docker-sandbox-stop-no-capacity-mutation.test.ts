@@ -130,7 +130,10 @@ describe("provider stop never mutates node capacity", () => {
     execBehavior = async () => {
       throw new Error("Error response from daemon: No such container: agent-x");
     };
-    const sandboxLookup = spyOn(agentSandboxesRepository, "findBySandboxId").mockResolvedValue({
+    const sandboxLookup = spyOn(
+      agentSandboxesRepository,
+      "findBySandboxIdForWrite",
+    ).mockResolvedValue({
       id: SANDBOX_ID,
       sandbox_id: SANDBOX_ID,
       node_id: NODE_ID,
@@ -138,7 +141,7 @@ describe("provider stop never mutates node capacity", () => {
       bridge_port: null,
       web_ui_port: null,
     } as never);
-    const nodeLookup = spyOn(dockerNodesRepository, "findByNodeId").mockResolvedValue({
+    const nodeLookup = spyOn(dockerNodesRepository, "findByNodeIdOnPrimary").mockResolvedValue({
       node_id: NODE_ID,
       hostname: "138.201.80.125",
       ssh_port: 22,
@@ -151,6 +154,8 @@ describe("provider stop never mutates node capacity", () => {
       await expect(provider.stopForDeletion(SANDBOX_ID)).resolves.toEqual({
         kind: "not-running-proven",
       });
+      expect(sandboxLookup).toHaveBeenCalledWith(SANDBOX_ID);
+      expect(nodeLookup).toHaveBeenCalledWith(NODE_ID);
       expect(decrementSpy).not.toHaveBeenCalled();
     } finally {
       sandboxLookup.mockRestore();
