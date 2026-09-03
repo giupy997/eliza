@@ -6079,6 +6079,9 @@ export class DockerSandboxProvider implements SandboxProvider {
         `[docker-sandbox] Container "${sandboxId}" not found in memory or DB. Cannot resolve target node.`,
       );
     }
+    logger.info("[docker-sandbox] Teardown sandbox authority resolved", {
+      agentId: sandbox.id,
+    });
 
     const dbNode = await dockerNodesRepository.findByNodeIdOnPrimary(sandbox.node_id);
     if (!dbNode) {
@@ -6089,6 +6092,9 @@ export class DockerSandboxProvider implements SandboxProvider {
     if (!dbNode.hostname) {
       throw new Error(`[docker-sandbox] Docker node "${sandbox.node_id}" is missing hostname`);
     }
+    logger.info("[docker-sandbox] Teardown node authority resolved", {
+      agentId: sandbox.id,
+    });
 
     return {
       nodeId: sandbox.node_id,

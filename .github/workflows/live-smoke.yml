@@ -1834,11 +1834,15 @@ jobs:
             fi
             teardown_resolution_started=false
             teardown_target_resolved=false
+            teardown_sandbox_authority_resolved=false
+            teardown_node_authority_resolved=false
             teardown_absence_probe_unavailable=false
             teardown_stop_failed=false
             teardown_remove_failed=false
             case "$lower" in *'[agent-sandbox] deleting agent'*) teardown_resolution_started=true ;; esac
             case "$lower" in *'[docker-sandbox] stopping container'*) teardown_target_resolved=true ;; esac
+            case "$lower" in *'teardown sandbox authority resolved'*) teardown_sandbox_authority_resolved=true ;; esac
+            case "$lower" in *'teardown node authority resolved'*) teardown_node_authority_resolved=true ;; esac
             case "$lower" in *'exact pre-delete absence probe unavailable'*) teardown_absence_probe_unavailable=true ;; esac
             case "$lower" in *'[docker-sandbox] docker stop failed'*) teardown_stop_failed=true ;; esac
             case "$lower" in *'[docker-sandbox] docker rm failed'*) teardown_remove_failed=true ;; esac
@@ -1855,6 +1859,8 @@ jobs:
             echo "dedicated_docker_self_heal_enabled=$self_heal_enabled"
             echo "dedicated_teardown_resolution_started=$teardown_resolution_started"
             echo "dedicated_teardown_target_resolved=$teardown_target_resolved"
+            echo "dedicated_teardown_sandbox_authority_resolved=$teardown_sandbox_authority_resolved"
+            echo "dedicated_teardown_node_authority_resolved=$teardown_node_authority_resolved"
             echo "dedicated_teardown_absence_probe_unavailable=$teardown_absence_probe_unavailable"
             echo "dedicated_teardown_stop_failed=$teardown_stop_failed"
             echo "dedicated_teardown_remove_failed=$teardown_remove_failed"
