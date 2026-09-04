@@ -522,6 +522,7 @@ jobs:
           bun-version: ${{ env.BUN_VERSION }}
           install-command: bun install --frozen-lockfile
           install-native-deps: "false"
+          setup-fused-inference: "true"
 
       - name: Build workspace packages for Vitest resolution
         run: bun run build:core
