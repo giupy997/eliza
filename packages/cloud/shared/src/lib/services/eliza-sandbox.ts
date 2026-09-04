@@ -134,6 +134,7 @@ import {
 } from "./sandbox-provider";
 import {
   isContainerBackedExecutionTier,
+  type SandboxDeletionLocator,
   type SandboxDeletionStopOutcome,
   SandboxReplacementCleanupUnresolvedError,
 } from "./sandbox-provider-types";
@@ -2939,7 +2940,7 @@ export class ElizaSandboxService {
 
     if (precheck.sandboxId) {
       const sandboxId = precheck.sandboxId;
-      const stop = await this.runBoundedSandboxStop(sandboxId);
+      const stop = await this.runBoundedSandboxStop(sandboxId, precheck.deletionLocator);
 
       if (stop.kind === "stop-timed-out") {
         const errorMessage = stop.error instanceof Error ? stop.error.message : String(stop.error);
@@ -3207,6 +3208,7 @@ export class ElizaSandboxService {
         deletionAttemptId: string;
         deletionStartedAt: Date;
         preDeleteBackupId: string | null;
+        deletionLocator: SandboxDeletionLocator | null;
       }
     | { ok: false; error: string }
   > {
@@ -3389,6 +3391,16 @@ export class ElizaSandboxService {
         lifecycleRevision = persisted.lifecycleRevision;
       }
 
+      const deletionLocator: SandboxDeletionLocator | null =
+        rec.sandbox_id && rec.node_id && rec.container_name
+          ? {
+              sandboxId: rec.sandbox_id,
+              agentId: rec.id,
+              nodeId: rec.node_id,
+              containerName: rec.container_name,
+            }
+          : null;
+
       return {
         ok: true as const,
         sandboxId: rec.sandbox_id,
@@ -3400,6 +3412,7 @@ export class ElizaSandboxService {
         deletionAttemptId: owned.deletionAttemptId,
         deletionStartedAt: owned.deletionStartedAt,
         preDeleteBackupId,
+        deletionLocator,
       };
     });
   }
@@ -3704,12 +3717,13 @@ export class ElizaSandboxService {
    */
   private async runBoundedSandboxStop(
     sandboxId: string,
+    locator?: SandboxDeletionLocator | null,
   ): Promise<BoundedDeletionSandboxStopResult> {
     return withTimeout(
       (async (): Promise<SandboxDeletionStopOutcome | { kind: "stop-failed"; error: unknown }> => {
         try {
           const provider = await this.getProvider();
-          return await provider.stopForDeletion(sandboxId);
+          return await provider.stopForDeletion(sandboxId, locator ?? undefined);
         } catch (error) {
           // error-policy:J1 provider boundary translation — deletion records the
           // exact stop failure so the outer workflow can report a structured outcome.

@@ -6266,6 +6266,12 @@ describe("ElizaSandboxService.deleteAgent teardown cap (#9066)", () => {
         }),
       ).resolves.toMatchObject({
         ok: true,
+        deletionLocator: {
+          sandboxId: live.sandbox_id,
+          agentId: live.id,
+          nodeId: live.node_id,
+          containerName: live.container_name,
+        },
       });
       expect(update).toHaveBeenCalled();
     } finally {

@@ -107,6 +107,7 @@ import { buildKeylessOpenAIContainerEnv } from "./managed-eliza-env";
 import { applyRemoteDockerRuntimeMode } from "./remote-docker-runtime-mode";
 import type {
   SandboxCreateConfig,
+  SandboxDeletionLocator,
   SandboxDeletionStopOutcome,
   SandboxExactRestoreCreateConfig,
   SandboxExactRestoreTarget,
@@ -5272,13 +5273,16 @@ export class DockerSandboxProvider implements SandboxProvider {
     }
   }
 
-  async stopForDeletion(sandboxId: string): Promise<SandboxDeletionStopOutcome> {
+  async stopForDeletion(
+    sandboxId: string,
+    locator?: SandboxDeletionLocator,
+  ): Promise<SandboxDeletionStopOutcome> {
     // Deletion is the one teardown whose capacity is owned elsewhere: the
     // caller's deletion generation releases the slot exactly once via
     // `tryReleaseDeletionAllocation`, because this path is retryable and
     // treats either a successful stop or "already gone" as proof that the
     // workload no longer consumes compute (#17185).
-    return this.stopWithPolicy(sandboxId, true, false);
+    return this.stopWithPolicy(sandboxId, true, false, locator);
   }
 
   /**
@@ -5299,8 +5303,11 @@ export class DockerSandboxProvider implements SandboxProvider {
     sandboxId: string,
     allowUnreachableAbandon: boolean,
     releaseCapacity: boolean,
+    deletionLocator?: SandboxDeletionLocator,
   ): Promise<SandboxDeletionStopOutcome> {
-    const meta = await this.resolveContainerForTeardown(sandboxId);
+    const meta = deletionLocator
+      ? await this.teardownMetaFromDeletionLocator(sandboxId, deletionLocator)
+      : await this.resolveContainerForTeardown(sandboxId);
 
     logger.info(
       `[docker-sandbox] Stopping container ${meta.containerName} on ${meta.nodeId} (${meta.hostname})`,
@@ -6108,6 +6115,48 @@ export class DockerSandboxProvider implements SandboxProvider {
       sshPort: dbNode.ssh_port ?? DEFAULT_SSH_PORT,
       sshUser: dbNode.ssh_user ?? DEFAULT_SSH_USERNAME,
       hostKeyFingerprint: dbNode.host_key_fingerprint ?? undefined,
+    };
+  }
+
+  /** Uses lifecycle-locked authority without reopening a competing DB lookup. */
+  private async teardownMetaFromDeletionLocator(
+    sandboxId: string,
+    locator: SandboxDeletionLocator,
+  ): Promise<TeardownContainerMeta> {
+    if (
+      locator.sandboxId !== sandboxId ||
+      locator.containerName !== sandboxId ||
+      locator.agentId.trim().length === 0 ||
+      locator.nodeId.trim().length === 0
+    ) {
+      throw new Error("[docker-sandbox] Invalid lifecycle-captured deletion locator");
+    }
+    const hasCompleteSshAuthority =
+      Boolean(locator.hostname?.trim()) &&
+      Boolean(locator.sshUser?.trim()) &&
+      Number.isSafeInteger(locator.sshPort) &&
+      (locator.sshPort ?? 0) >= 1 &&
+      (locator.sshPort ?? 0) <= 65_535;
+    const dbNode = hasCompleteSshAuthority
+      ? null
+      : await dockerNodesRepository.findByNodeIdOnPrimary(locator.nodeId);
+    if (!hasCompleteSshAuthority && !dbNode) {
+      throw new Error(
+        `[docker-sandbox] Missing persisted docker node metadata for node "${locator.nodeId}"`,
+      );
+    }
+    logger.info("[docker-sandbox] Teardown target resolved from lifecycle authority", {
+      agentId: locator.agentId,
+    });
+    return {
+      nodeId: locator.nodeId,
+      hostname: locator.hostname ?? dbNode?.hostname ?? "",
+      containerName: locator.containerName,
+      agentId: locator.agentId,
+      tsHostname: locator.containerName,
+      sshPort: locator.sshPort ?? dbNode?.ssh_port ?? DEFAULT_SSH_PORT,
+      sshUser: locator.sshUser ?? dbNode?.ssh_user ?? DEFAULT_SSH_USERNAME,
+      hostKeyFingerprint: locator.hostKeyFingerprint ?? dbNode?.host_key_fingerprint ?? undefined,
     };
   }
 

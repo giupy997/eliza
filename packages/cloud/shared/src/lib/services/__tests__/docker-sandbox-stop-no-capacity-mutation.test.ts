@@ -126,21 +126,16 @@ describe("provider stop never mutates node capacity", () => {
     expect(decrementSpy).not.toHaveBeenCalled();
   });
 
-  test("a restarted worker can delete a failed provision before ports were assigned", async () => {
+  test("a restarted worker deletes from lifecycle placement without re-reading the sandbox", async () => {
     execBehavior = async () => {
       throw new Error("Error response from daemon: No such container: agent-x");
     };
     const sandboxLookup = spyOn(
       agentSandboxesRepository,
       "findBySandboxIdForWrite",
-    ).mockResolvedValue({
-      id: SANDBOX_ID,
-      sandbox_id: SANDBOX_ID,
-      node_id: NODE_ID,
-      container_name: SANDBOX_ID,
-      bridge_port: null,
-      web_ui_port: null,
-    } as never);
+    ).mockImplementation(async () => {
+      throw new Error("sandbox lookup must not run after deletion ownership is captured");
+    });
     const nodeLookup = spyOn(dockerNodesRepository, "findByNodeIdOnPrimary").mockResolvedValue({
       node_id: NODE_ID,
       hostname: "138.201.80.125",
@@ -151,10 +146,15 @@ describe("provider stop never mutates node capacity", () => {
     const provider = new DockerSandboxProvider();
 
     try {
-      await expect(provider.stopForDeletion(SANDBOX_ID)).resolves.toEqual({
-        kind: "not-running-proven",
-      });
-      expect(sandboxLookup).toHaveBeenCalledWith(SANDBOX_ID);
+      await expect(
+        provider.stopForDeletion(SANDBOX_ID, {
+          sandboxId: SANDBOX_ID,
+          agentId: SANDBOX_ID,
+          nodeId: NODE_ID,
+          containerName: SANDBOX_ID,
+        }),
+      ).resolves.toEqual({ kind: "not-running-proven" });
+      expect(sandboxLookup).not.toHaveBeenCalled();
       expect(nodeLookup).toHaveBeenCalledWith(NODE_ID);
       expect(decrementSpy).not.toHaveBeenCalled();
     } finally {
