@@ -6137,6 +6137,9 @@ export class DockerSandboxProvider implements SandboxProvider {
       Number.isSafeInteger(locator.sshPort) &&
       (locator.sshPort ?? 0) >= 1 &&
       (locator.sshPort ?? 0) <= 65_535;
+    logger.info("[docker-sandbox] Teardown sandbox authority resolved", {
+      agentId: locator.agentId,
+    });
     const dbNode = hasCompleteSshAuthority
       ? null
       : await dockerNodesRepository.findByNodeIdOnPrimary(locator.nodeId);
@@ -6145,6 +6148,9 @@ export class DockerSandboxProvider implements SandboxProvider {
         `[docker-sandbox] Missing persisted docker node metadata for node "${locator.nodeId}"`,
       );
     }
+    logger.info("[docker-sandbox] Teardown node authority resolved", {
+      agentId: locator.agentId,
+    });
     logger.info("[docker-sandbox] Teardown target resolved from lifecycle authority", {
       agentId: locator.agentId,
     });

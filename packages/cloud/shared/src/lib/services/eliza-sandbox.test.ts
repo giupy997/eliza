@@ -6245,7 +6245,20 @@ describe("ElizaSandboxService.deleteAgent teardown cap (#9066)", () => {
         })),
       })),
     }));
-    upgradeTransactionImpl = async (fn) => fn({ execute: async () => ({ rows: [] }), update });
+    upgradeTransactionImpl = async (fn) =>
+      fn({
+        execute: async () => ({
+          rows: [
+            {
+              hostname: "dedicated-node.example.test",
+              ssh_port: 2222,
+              ssh_user: "eliza",
+              host_key_fingerprint: "SHA256:test",
+            },
+          ],
+        }),
+        update,
+      });
 
     try {
       await expect(
@@ -6271,6 +6284,10 @@ describe("ElizaSandboxService.deleteAgent teardown cap (#9066)", () => {
           agentId: live.id,
           nodeId: live.node_id,
           containerName: live.container_name,
+          hostname: "dedicated-node.example.test",
+          sshPort: 2222,
+          sshUser: "eliza",
+          hostKeyFingerprint: "SHA256:test",
         },
       });
       expect(update).toHaveBeenCalled();

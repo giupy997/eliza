@@ -3391,15 +3391,37 @@ export class ElizaSandboxService {
         lifecycleRevision = persisted.lifecycleRevision;
       }
 
-      const deletionLocator: SandboxDeletionLocator | null =
-        rec.sandbox_id && rec.node_id && rec.container_name
-          ? {
-              sandboxId: rec.sandbox_id,
-              agentId: rec.id,
-              nodeId: rec.node_id,
-              containerName: rec.container_name,
-            }
-          : null;
+      let deletionLocator: SandboxDeletionLocator | null = null;
+      if (rec.sandbox_id && rec.node_id && rec.container_name) {
+        const nodeAuthority = await tx.execute<{
+          hostname: string;
+          ssh_port: number;
+          ssh_user: string;
+          host_key_fingerprint: string | null;
+        }>(sql`
+          SELECT hostname, ssh_port, ssh_user, host_key_fingerprint
+          FROM ${dockerNodes}
+          WHERE node_id = ${rec.node_id}
+          LIMIT 1
+        `);
+        const node = nodeAuthority.rows[0];
+        deletionLocator = {
+          sandboxId: rec.sandbox_id,
+          agentId: rec.id,
+          nodeId: rec.node_id,
+          containerName: rec.container_name,
+          ...(node
+            ? {
+                hostname: node.hostname,
+                sshPort: node.ssh_port,
+                sshUser: node.ssh_user,
+                ...(node.host_key_fingerprint
+                  ? { hostKeyFingerprint: node.host_key_fingerprint }
+                  : {}),
+              }
+            : {}),
+        };
+      }
 
       return {
         ok: true as const,
